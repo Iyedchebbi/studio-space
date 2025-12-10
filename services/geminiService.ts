@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { AIModel, GeneratedResult, ImageAnalysis, AppLanguage, AdType, SceneGenConfig, StudioScene, GeneratePromptParams, StudioConfig, AspectRatio, StudioCharacter } from "../types";
 
 // --- CONFIGURATION ---
@@ -73,18 +73,22 @@ Your goal: Create the perfect video generation prompt for models like Sora, Veo,
 
 // --- API HELPERS ---
 
-const getClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getClient = () => {
+  const key = process.env.API_KEY;
+  if (!key || key.trim() === '') {
+    throw new Error("Missing API Key. Check your .env file or Netlify Environment Variables.");
+  }
+  return new GoogleGenAI({ apiKey: key });
+};
 
 const parseJSONSafe = (text: string): any => {
   if (!text) return {};
   try {
     return JSON.parse(text);
   } catch (e) {
-    // Attempt to extract JSON object if direct parse fails (e.g. markdown blocks or trailing text)
     try {
-        // Remove markdown tags
+        // Attempt to extract JSON from Markdown code blocks
         let clean = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-        // Extract substring from first { to last }
         const first = clean.indexOf('{');
         const last = clean.lastIndexOf('}');
         if (first !== -1 && last !== -1) {
@@ -93,8 +97,7 @@ const parseJSONSafe = (text: string): any => {
         return JSON.parse(clean);
     } catch (finalErr) {
         console.error("Failed to parse JSON response:", finalErr);
-        console.error("Original text:", text);
-        return {};
+        throw new Error("AI response was not valid JSON. Please try again.");
     }
   }
 };
@@ -127,188 +130,138 @@ export const analyzeImage = async (base64Image: string): Promise<ImageAnalysis> 
     });
 
     const data = parseJSONSafe(response.text || "{}");
-    const result = (typeof data === 'object') ? data : {};
-
     return {
-      productDescription: result.productDescription || "Product",
-      category: result.category || "General",
-      colors: Array.isArray(result.colors) ? result.colors : [],
-      suggestedAngles: Array.isArray(result.suggestedAngles) ? result.suggestedAngles : [],
-      suggestedScene: result.suggestedScene || "Studio setting"
+      productDescription: data.productDescription || "Product",
+      category: data.category || "General",
+      colors: Array.isArray(data.colors) ? data.colors : [],
+      suggestedAngles: Array.isArray(data.suggestedAngles) ? data.suggestedAngles : [],
+      suggestedScene: data.suggestedScene || "Studio setting"
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Analysis Error:", error);
-    // Return safe default
-    return { productDescription: "Product", category: "General", colors: [], suggestedAngles: [], suggestedScene: "" };
+    throw new Error(`Image Analysis Failed: ${error.message}`);
   }
 };
 
 export const generateAdPrompt = async (params: GeneratePromptParams): Promise<GeneratedResult> => {
   try {
-    const parts: any[] = [];
-    if (params.base64Image) {
-      const cleanBase64 = params.base64Image.replace(/^data:image\/(png|jpeg|webp);base64,/, '');
-      parts.push({ inlineData: { mimeType: 'image/png', data: cleanBase64 } });
-    }
+    const adStyle = params.adTypes.map(t => AD_TYPE_DEFINITIONS[t] || { visuals: "", camera: "", lighting: "" }).reduce((acc, curr) => ({
+       visuals: acc.visuals + " " + curr.visuals,
+       camera: acc.camera + " " + curr.camera,
+       lighting: acc.lighting + " " + curr.lighting
+    }), { visuals: "", camera: "", lighting: "" });
 
-    const typeDef = AD_TYPE_DEFINITIONS[params.adTypes[0]] || AD_TYPE_DEFINITIONS[AdType.ProductShowcase];
-    
-    const colors = Array.isArray(params.imageAnalysis?.colors) ? params.imageAnalysis!.colors.join(', ') : '';
-    const camera = Array.isArray(params.camera) ? params.camera.join(', ') : '';
-    
-    const userPrompt = `
-      PROJECT: Video Ad Generation
-      MODEL TARGET: ${params.model}
+    const prompt = `
+      ${DIRECTOR_SYSTEM_PROMPT}
+
+      # PROJECT BRIEF
+      - **Language**: ${params.language === 'ar' ? 'Arabic (Return rationale in Arabic, Prompt in English)' : 'English'}
+      - **Input**: ${params.imageAnalysis?.productDescription}
+      - **Target Model**: ${params.model}
+      - **Aspect Ratio**: ${params.aspectRatio}
+      - **Duration**: ${params.videoDuration}s
+      - **Ad Types**: ${params.adTypes.join(', ')}
+      - **Hybrid Mode**: ${params.isHybridMode}
+      - **Visual Style**: ${params.style || 'None'}
+      - **Brand Context**: ${params.context.brandMessage}
+      - **Voiceover**: ${params.context.voiceover}
+      - **Technical Specs**: Camera [${params.camera.join(', ')}], Lighting [${params.lighting}].
+      - **Creative DNA**: 
+        - Visuals: ${adStyle.visuals}
+        - Camera Movement: ${adStyle.camera}
+        - Lighting Mood: ${adStyle.lighting}
       
-      INPUT DATA:
-      - Product: ${params.imageAnalysis?.productDescription || 'Generic Product'}
-      - Colors: ${colors}
-      - Brand Message: "${params.context.brandMessage}"
-      
-      CONFIGURATION:
-      - Style: ${params.adTypes[0]} (${params.isHybridMode ? 'HYBRID MODE ACTIVE' : 'Single Mode'})
-      - Mood: ${params.style}
-      - Lighting: ${params.lighting}
-      - Camera: ${camera}
-      - Duration: ${params.videoDuration}s
-      - Sliders: Creativity ${params.sliders.creativity}%, Realism ${params.sliders.realism}%
-      
-      VISUAL MANDATES:
-      ${typeDef.visuals}
-      
-      TASK:
-      Generate a comprehensive JSON response including:
-      1. 'final_full_generation_prompt': The master prompt for the video AI.
-      2. 'strategy': Short explanation of the creative direction.
-      3. 'hooks': 3 viral hooks.
+      # OUTPUT JSON STRUCTURE
+      {
+        "finalPrompt": "THE_FULL_DETAILED_PROMPT_HERE",
+        "richData": {
+          "strategy": "Why this works...",
+          "visual_hooks": ["Hook 1", "Hook 2"],
+          "audio_direction": "Sound design notes..."
+        },
+        "idea": "Short summary of the concept"
+      }
     `;
-
-    parts.push({ text: userPrompt });
 
     const response = await getClient().models.generateContent({
       model: GENERATION_MODEL,
-      contents: { parts },
-      config: {
-        systemInstruction: DIRECTOR_SYSTEM_PROMPT,
-        responseMimeType: "application/json"
-      }
+      contents: { parts: [{ text: prompt }] },
+      config: { responseMimeType: "application/json" }
     });
 
-    const json = parseJSONSafe(response.text || "{}");
+    const data = parseJSONSafe(response.text || "{}");
+    if (!data.finalPrompt) throw new Error("AI did not return a valid prompt.");
 
     return {
-      finalPrompt: json.final_full_generation_prompt || json.prompt || "Error generating prompt",
-      richData: json
+      finalPrompt: data.finalPrompt,
+      richData: data.richData,
+      idea: data.idea
     };
-
-  } catch (error) {
-    console.error("Prompt Generation Error:", error);
-    throw error;
+  } catch (error: any) {
+    console.error("Generation Error:", error);
+    throw new Error(`Prompt Generation Failed: ${error.message}`);
   }
 };
 
-export const generateReferenceImage = async (base64Source: string, config: SceneGenConfig): Promise<string> => {
-  try {
-    const primaryType = (config.adTypes && config.adTypes.length > 0) ? config.adTypes[0] : AdType.ProductShowcase;
-    const typeDef = AD_TYPE_DEFINITIONS[primaryType] || AD_TYPE_DEFINITIONS[AdType.ProductShowcase];
-    
-    const desc = config.analysis?.productDescription || 'A premium product';
-    const scene = config.analysis?.suggestedScene || 'Professional studio';
-    const lighting = config.lighting || 'Cinematic';
-    const style = config.style || 'Modern';
-    const colors = Array.isArray(config.analysis?.colors) ? config.analysis!.colors.join(', ') : 'Neutral';
-    const cam = Array.isArray(config.camera) ? config.camera.join(', ') : 'Standard';
-
-    const textPrompt = `A high-resolution photorealistic commercial image of ${desc}. 
-    Context: ${scene}. 
-    Lighting: ${lighting}. 
-    Colors: ${colors}. 
-    Style: ${style} - ${typeDef.visuals}. 
-    Camera: ${cam}. 
-    8k resolution, highly detailed, advertising photography.`;
-
-    const response = await getClient().models.generateContent({
-      model: IMAGE_GEN_MODEL,
-      contents: { parts: [{ text: textPrompt }] },
-      config: { imageConfig: { aspectRatio: "16:9" } }
-    });
-
-    for (const candidate of response.candidates || []) {
-      for (const part of candidate.content?.parts || []) {
-        if (part.inlineData) {
-          return `data:image/png;base64,${part.inlineData.data}`;
-        }
-      }
-    }
-    
-    const textPart = response.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (textPart) throw new Error(`AI Refusal: ${textPart}`);
-    
-    throw new Error("No image data returned from AI.");
-  } catch (error) {
-    console.error("Scene Gen Error:", error);
-    throw error;
-  }
-};
-
-// NEW: Enhance the user's rough idea
 export const enhanceStoryConcept = async (concept: string): Promise<string> => {
-    try {
-        const prompt = `
-            Act as an Expert Film Director and Script Doctor.
-            Refine and Enhance the following raw film idea. 
-            Make it more cinematic, detailed, and visually evocative.
-            Keep it concise (3-4 sentences max).
-            Do not add conversational filler. Just return the improved concept text.
-            
-            Raw Idea: "${concept}"
-        `;
-        const response = await getClient().models.generateContent({
-            model: GENERATION_MODEL,
-            contents: { parts: [{ text: prompt }] },
-        });
-        return response.text || concept;
-    } catch (e) {
-        console.error("Enhance Error", e);
-        return concept;
-    }
+  try {
+    const response = await getClient().models.generateContent({
+      model: GENERATION_MODEL,
+      contents: { text: `Act as a Hollywood Screenwriter. Take this raw film concept and enhance it to be more cinematic, intriguing, and visually descriptive, but keep it concise (under 100 words). \n\nRAW CONCEPT: "${concept}"\n\nENHANCED CONCEPT:` }
+    });
+    return response.text?.trim() || concept;
+  } catch (error: any) {
+     throw new Error(`Enhancement Failed: ${error.message}`);
+  }
 };
 
-export const generateStoryboard = async (idea: string, config: StudioConfig, model: string, language: AppLanguage): Promise<{fullScript: string, backgroundMusicPrompt: string, characters: StudioCharacter[], scenes: StudioScene[]}> => {
+export const generateStoryboard = async (
+  idea: string, 
+  config: StudioConfig, 
+  model: string,
+  language: AppLanguage
+): Promise<{
+  fullScript: string;
+  backgroundMusicPrompt: string;
+  characters: StudioCharacter[];
+  scenes: StudioScene[];
+}> => {
   try {
     const prompt = `
-      Act as a Lead Storyboard Artist, Sound Designer, and Video Production Expert.
-      Idea: "${idea}"
-      Style: ${config.style}
-      Language: ${language}
+      You are a Lead Narrative Designer and Cinematographer.
       
-      STEP 1: Create a Cast of Characters (1-3 max). Define them with vivid visual details (clothing, face, accessories) so an image generator can reproduce them consistently.
-      STEP 2: Write a complete, compelling Voiceover/Narrator Script for the ENTIRE video.
-      STEP 3: Write a specific AI Music Generator prompt for the Background Music. It should describe the mood, instruments, tempo, and genre that fits this story perfectly.
-      STEP 4: Break down the visual story into exactly ${config.sceneCount} scenes.
+      # INPUT
+      - Idea: "${idea}"
+      - Style: ${config.style}
+      - Scene Count: ${config.sceneCount}
+      - Scene Duration: ${config.sceneDuration}s
+      - Language: ${language}
+
+      # TASK
+      1. **Characters**: Create consistent characters with names and detailed visual descriptions (hair, clothes, face).
+      2. **Script**: Write a full Voiceover Script for the entire video (Narrator or Dialogue).
+      3. **Audio**: Describe the perfect background music (BGM) to match the mood.
+      4. **Scenes**: Break the script into exactly ${config.sceneCount} visual scenes.
       
-      CRITICAL RULES FOR "videoPrompt" in SCENES:
-      1. It MUST describe the camera movement and action.
-      2. It MUST include the phrase "Consistent voice".
-      3. It MUST include the phrase "Very high lips sync" if there is dialogue.
-      4. IF the scene involves a character speaking, you MUST append their specific dialogue line to the video prompt using the format: "Character saying: '...line...'".
+      # SCENE RULES
+      - **Visual Prompt**: For Image Generation. MUST include the physical description of the character (e.g., "John, a rugged man with a scar...") to ensure consistency. describe the setting and action.
+      - **Video Prompt**: For Video Generation. Must include camera movement, lighting, and "High fidelity lip sync" instructions if there is dialogue.
 
-      IMPORTANT: When writing the 'visualPrompt' for each scene, if a defined character appears, YOU MUST include their full physical description again (e.g. 'The man with the red scarf and cyber goggles...') to ensure the image generator maintains consistency. Do not just use their name.
-
-      Output JSON structure:
+      # OUTPUT JSON FORMAT
       {
         "characters": [
-          { "name": "Name", "description": "Personality/Role", "visualPrompt": "Portrait prompt focusing on face/outfit..." }
+          { "id": 1, "name": "Name", "description": "Personality...", "visualPrompt": "Physical appearance details...", "aspectRatio": "16:9" }
         ],
-        "fullScript": "The complete narration text for the whole video...",
-        "backgroundMusicPrompt": "Detailed prompt for AI music generator (Suno/Udio style)...",
+        "fullScript": "The complete voiceover text...",
+        "backgroundMusicPrompt": "Detailed audio prompt for the music...",
         "scenes": [
-            {
-                "title": "Scene 1: [Name]",
-                "visualPrompt": "STATIC IMAGE PROMPT. Highly detailed. Includes character visual details if present.",
-                "videoPrompt": "VIDEO GENERATION PROMPT. Includes action + 'Consistent voice' + 'Very high lips sync' + 'Character saying: ...'",
-                "script": "The specific segment of the voiceover/dialogue for this scene."
-            }
+          {
+            "id": 1,
+            "title": "Scene Title",
+            "visualPrompt": "Image gen prompt (including character visual details)...",
+            "videoPrompt": "Video gen prompt (Motion + Camera + 'Lip sync: [Dialogue]')...",
+            "aspectRatio": "16:9"
+          }
         ]
       }
     `;
@@ -321,124 +274,71 @@ export const generateStoryboard = async (idea: string, config: StudioConfig, mod
 
     const data = parseJSONSafe(response.text || "{}");
     
-    // Defensive extraction
-    const rawScenes = data.scenes || data.storyboard || [];
-    const rawChars = data.characters || [];
-    const fullScript = data.fullScript || data.script || "No script generated.";
-    const backgroundMusicPrompt = data.backgroundMusicPrompt || "Cinematic ambient background music.";
-
-    if (!Array.isArray(rawScenes) || rawScenes.length === 0) {
-        throw new Error("Failed to parse valid storyboard scenes from AI response.");
+    if (!data.scenes || !Array.isArray(data.scenes)) {
+        throw new Error("AI failed to generate valid scenes.");
     }
 
-    const characters = rawChars.map((c: any, i: number) => ({
-      id: i + 1,
-      name: c.name || `Character ${i + 1}`,
-      description: c.description || "",
-      visualPrompt: c.visualPrompt || "",
-      isGeneratingImage: false,
-      aspectRatio: AspectRatio.Portrait // Characters usually portrait
+    // Map and hydrate with default state
+    const characters: StudioCharacter[] = (data.characters || []).map((c: any) => ({
+        ...c,
+        isGeneratingImage: false,
+        imageUrl: null,
+        aspectRatio: AspectRatio.Landscape
     }));
 
-    const scenes = rawScenes.map((s: any, i: number) => ({
-      id: i + 1,
-      title: s.title || `Scene ${i + 1}`,
-      description: s.description || s.visualPrompt || "",
-      visualPrompt: s.visualPrompt || "",
-      videoPrompt: s.videoPrompt || s.visualPrompt || "",
-      script: s.script || s.voiceover || "",
-      voiceover: s.script || s.voiceover || "",
-      isGeneratingImage: false,
-      duration: config.sceneDuration,
-      aspectRatio: AspectRatio.Landscape
+    const scenes: StudioScene[] = data.scenes.map((s: any) => ({
+        ...s,
+        isGeneratingImage: false,
+        imageUrl: null,
+        aspectRatio: AspectRatio.Landscape,
+        script: "", // Legacy field
+        voiceover: "" // Legacy field
     }));
 
-    return { fullScript, backgroundMusicPrompt, characters, scenes };
-
-  } catch (error) {
+    return {
+        fullScript: data.fullScript || "",
+        backgroundMusicPrompt: data.backgroundMusicPrompt || "",
+        characters,
+        scenes
+    };
+  } catch (error: any) {
     console.error("Storyboard Error:", error);
-    throw error;
+    throw new Error(`Storyboard Generation Failed: ${error.message}`);
   }
 };
 
-export const generateImage = async (visualPrompt: string, style: string, aspectRatio: AspectRatio): Promise<string> => {
+export const generateImage = async (prompt: string, style: string, ratio: AspectRatio): Promise<string> => {
   try {
-    let ratioStr = "16:9";
-    switch (aspectRatio) {
-      case AspectRatio.Vertical: ratioStr = "9:16"; break;
-      case AspectRatio.Square: ratioStr = "1:1"; break;
-      case AspectRatio.Portrait: ratioStr = "3:4"; break;
-      case AspectRatio.Landscape: ratioStr = "16:9"; break;
-      default: ratioStr = "16:9";
-    }
-
-    // Explicit instruction to generate image only, reducing conversational refusal/preamble
     const finalPrompt = `
-      Generate a photorealistic image based on this description. 
-      Do not generate text. Do not offer a preamble.
-      
-      Visual Description: ${visualPrompt}
-      Style: ${style}
-      Quality: 8k, cinematic lighting, highly detailed.
+      Create a high-quality, photorealistic image.
+      Style: ${style}.
+      Subject: ${prompt}.
+      Aspect Ratio: ${ratio}.
+      REQUIREMENTS: No text overlay, no watermarks, cinematic lighting, 8k resolution.
     `;
-    
+
     const response = await getClient().models.generateContent({
       model: IMAGE_GEN_MODEL,
-      contents: { parts: [{ text: finalPrompt }] },
-      config: { imageConfig: { aspectRatio: ratioStr as any } }
+      contents: { parts: [{ text: finalPrompt }] }
     });
 
-    for (const candidate of response.candidates || []) {
-      for (const part of candidate.content?.parts || []) {
-        if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
-      }
+    // Handle text refusal gracefully
+    const textPart = response.candidates?.[0]?.content?.parts?.find(p => p.text);
+    if (textPart && textPart.text && !response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)) {
+         if (textPart.text.toLowerCase().includes("cannot") || textPart.text.toLowerCase().includes("unable")) {
+             throw new Error("AI Refusal: " + textPart.text);
+         }
     }
 
-    // If no image, check for refusal text
-    const textPart = response.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (textPart) {
-         // If the model gets chatty ("Absolutely, here is..."), we treat it as a failure but log it clearly
-         throw new Error(`AI returned text instead of image: "${textPart.substring(0, 50)}..."`);
-    }
+    const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
     
-    throw new Error("No image generated by AI model (empty response).");
-  } catch (error) {
+    if (!imagePart || !imagePart.inlineData || !imagePart.inlineData.data) {
+       throw new Error("Model did not return an image. It might have been blocked by safety filters.");
+    }
+
+    return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+  } catch (error: any) {
     console.error("Image Gen Error:", error);
-    throw error;
-  }
-};
-
-export const generateCreativeContext = async (
-  analysis: ImageAnalysis | null, 
-  adTypes: string[], 
-  style: string,
-  language: AppLanguage
-): Promise<{ brandMessage: string; voiceover: string }> => {
-  try {
-      const prompt = `
-        You are a Top Copywriter.
-        Product: "${analysis?.productDescription || 'General Product'}"
-        Style: ${adTypes[0]} / ${style}
-        Language: ${language}
-        
-        Generate:
-        1. A catchy, stunning brand slogan (max 7 words).
-        2. A short mood description for voiceover.
-        
-        Return JSON: { "brandMessage": "...", "voiceover": "..." }
-      `;
-
-      const response = await getClient().models.generateContent({
-        model: GENERATION_MODEL,
-        contents: { parts: [{ text: prompt }] },
-        config: { responseMimeType: "application/json" }
-      });
-
-      const json = parseJSONSafe(response.text || "{}");
-
-      return json;
-  } catch (error) {
-      console.error("Context Gen Error", error);
-      return { brandMessage: "", voiceover: "" };
+    throw new Error(error.message || "Image generation failed.");
   }
 };

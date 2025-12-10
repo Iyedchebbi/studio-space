@@ -1,11 +1,12 @@
+
 import React from 'react';
 import { GeneratedResult, OutputFormat, AppLanguage, AIModel } from '../types';
-import { TRANSLATIONS } from '../constants';
-import { Copy, Check, Terminal, Code, FileText } from 'lucide-react';
+import { Copy, Check, Terminal, AlertTriangle } from 'lucide-react';
 
 interface ResultPanelProps {
   result: GeneratedResult | null;
   loading: boolean;
+  error?: string | null;
   onRegenerate: () => void;
   outputFormat: OutputFormat;
   setOutputFormat: (fmt: OutputFormat) => void;
@@ -14,7 +15,7 @@ interface ResultPanelProps {
 }
 
 export const ResultPanel: React.FC<ResultPanelProps> = ({ 
-  result, loading, outputFormat, setOutputFormat, model 
+  result, loading, error, outputFormat, setOutputFormat, model 
 }) => {
   const [copied, setCopied] = React.useState(false);
 
@@ -29,6 +30,16 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
     <div className="h-full flex flex-col items-center justify-center p-12 space-y-4">
       <div className="w-12 h-12 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin"></div>
       <p className="text-zinc-500 text-xs tracking-widest uppercase animate-pulse">Compiling Director's Cut...</p>
+    </div>
+  );
+
+  if (error) return (
+    <div className="h-full flex flex-col items-center justify-center p-12 text-center">
+      <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-6 border border-red-100">
+        <AlertTriangle className="w-8 h-8 text-red-500" />
+      </div>
+      <h3 className="text-lg font-bold text-zinc-800 mb-2">Generation Failed</h3>
+      <p className="text-sm text-zinc-500 max-w-xs mb-6 leading-relaxed">{error}</p>
     </div>
   );
 

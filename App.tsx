@@ -6,7 +6,7 @@ import {
   Monitor, Clapperboard, PenTool, ArrowRight, CheckCircle2,
   Video, Languages, Plus, RefreshCcw, Command,
   Film, Clock, User, Palette, Ratio, Copy, FileText, UserCircle2, Music,
-  History, Trash2, Calendar
+  History, Trash2, Calendar, XCircle, AlertCircle
 } from 'lucide-react';
 
 import { AppState, AdType, CreativeStyle, AIModel, AspectRatio, AppLanguage, HistoryItem, StudioScene, StudioConfig, StudioCharacter } from './types';
@@ -51,6 +51,10 @@ const App: React.FC = () => {
     activeView: 'create', // 'create' | 'history'
     showHistoryPanel: false,
     history: [],
+    
+    // Error State
+    error: null,
+
     image: null,
     generatedSceneImage: null,
     isAnalyzing: false,
@@ -141,7 +145,8 @@ const App: React.FC = () => {
          studioCharacters: item.result.characters || [],
          storyScript: item.result.fullScript || "",
          backgroundMusic: item.result.backgroundMusicPrompt || "",
-         studioConfig: item.result.config || p.studioConfig
+         studioConfig: item.result.config || p.studioConfig,
+         error: null
        }));
     } else {
        // Ad Project
@@ -151,7 +156,7 @@ const App: React.FC = () => {
          activeView: 'create',
          result: item.result,
          image: item.imageThumbnail || null,
-         // We might not restore every slider setting to keep it simple, but we could
+         error: null
        }));
     }
   };
@@ -163,6 +168,8 @@ const App: React.FC = () => {
     }
   };
 
+  const dismissError = () => setState(p => ({...p, error: null}));
+
   // --- HANDLERS ---
 
   const handleReset = () => {
@@ -170,7 +177,8 @@ const App: React.FC = () => {
         ...prev, image: null, generatedSceneImage: null, result: null, analysis: null, studioInput: '', storyScript: '', backgroundMusic: '', studioScenes: [], studioCharacters: [], studioResult: null,
         selectedAdType: [AdType.ProductShowcase], isHybridMode: false,
         studioConfig: { style: 'Hollywood Cinematic', sceneCount: 5, sceneDuration: 5, characterDescription: '' },
-        isGenerating: false, isGeneratingScene: false, isAnalyzing: false, activeView: 'create'
+        isGenerating: false, isGeneratingScene: false, isAnalyzing: false, activeView: 'create',
+        error: null
     }));
     if (fileInputRef.current) fileInputRef.current.value = '';
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -194,21 +202,30 @@ const App: React.FC = () => {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    // Validations
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        setState(p => ({...p, error: "Image too large. Please upload an image under 5MB."}));
+        return;
+    }
+
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result as string;
-      setState(prev => ({ ...prev, image: base64, isAnalyzing: true, analysis: null }));
+      setState(prev => ({ ...prev, image: base64, isAnalyzing: true, analysis: null, error: null }));
       try {
         const analysis = await analyzeImage(base64);
         setState(prev => ({ ...prev, isAnalyzing: false, analysis }));
-      } catch (err) { setState(prev => ({ ...prev, isAnalyzing: false })); }
+      } catch (err: any) { 
+        setState(prev => ({ ...prev, isAnalyzing: false, error: err.message || "Image analysis failed." })); 
+      }
     };
     reader.readAsDataURL(file);
   };
 
   const handleGeneratePrompt = async () => {
     if (!state.image) return;
-    setState(prev => ({ ...prev, isGenerating: true, result: null }));
+    setState(prev => ({ ...prev, isGenerating: true, result: null, error: null }));
     try {
       const result = await generateAdPrompt({
         imageAnalysis: state.analysis, base64Image: state.image, adTypes: state.selectedAdType, isHybridMode: state.isHybridMode,
@@ -218,22 +235,27 @@ const App: React.FC = () => {
       });
       setState(prev => ({ ...prev, isGenerating: false, result }));
       saveToHistory(result, 'ad');
-    } catch (error) { console.error(error); setState(prev => ({ ...prev, isGenerating: false })); }
+    } catch (error: any) { 
+        console.error(error); 
+        setState(prev => ({ ...prev, isGenerating: false, error: error.message || "Failed to generate prompt." })); 
+    }
   };
 
   const handleEnhanceIdea = async () => {
       if(!state.studioInput) return;
-      setState(p => ({...p, isEnhancing: true}));
+      setState(p => ({...p, isEnhancing: true, error: null}));
       try {
           const improved = await enhanceStoryConcept(state.studioInput);
           setState(p => ({...p, isEnhancing: false, studioInput: improved}));
-      } catch (e) { setState(p => ({...p, isEnhancing: false})); }
+      } catch (e: any) { 
+          setState(p => ({...p, isEnhancing: false, error: e.message || "Enhancement failed."})); 
+      }
   };
 
   const handleGenerateStoryboard = async () => {
     if (!state.studioInput) return;
     // Reset
-    setState(p => ({ ...p, isGeneratingStory: true, studioScenes: [], studioCharacters: [], storyScript: '', backgroundMusic: '' }));
+    setState(p => ({ ...p, isGeneratingStory: true, studioScenes: [], studioCharacters: [], storyScript: '', backgroundMusic: '', error: null }));
     try {
       // 1. Generate Text (Script, Music, Characters, Scenes)
       const { fullScript, backgroundMusicPrompt, characters, scenes } = await generateStoryboard(state.studioInput, state.studioConfig, state.selectedModel, state.language);
@@ -254,7 +276,9 @@ const App: React.FC = () => {
       };
       saveToHistory(studioStateBundle, 'studio');
 
-    } catch (e) { setState(p => ({ ...p, isGeneratingStory: false })); }
+    } catch (e: any) { 
+        setState(p => ({ ...p, isGeneratingStory: false, error: e.message || "Storyboard generation failed." })); 
+    }
   };
 
   const handleGenerateCharacterImage = async (charId: number, prompt: string, ratio: AspectRatio, currentChars: StudioCharacter[]) => {
@@ -270,9 +294,10 @@ const App: React.FC = () => {
           }));
       } catch (e: any) {
            console.error(e);
-           alert("Failed to generate character image: " + (e.message || "Unknown error"));
+           // Store error globally or just alert for this specific action? Global is better for visibility.
            setState(p => ({
               ...p,
+              error: `Character Gen Failed: ${e.message}`,
               studioCharacters: p.studioCharacters.map(c => c.id === charId ? { ...c, isGeneratingImage: false } : c)
           }));
       }
@@ -292,9 +317,9 @@ const App: React.FC = () => {
           }));
       } catch (e: any) {
           console.error(e);
-          alert("Failed to generate scene image: " + (e.message || "Unknown error"));
           setState(p => ({
               ...p,
+              error: `Scene Gen Failed: ${e.message}`,
               studioScenes: p.studioScenes.map(s => s.id === sceneId ? { ...s, isGeneratingImage: false } : s)
           }));
       }
@@ -388,7 +413,7 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col relative overflow-hidden">
         
         {/* HEADER */}
-        <header className="h-20 flex items-center justify-between px-8 z-10 animate-fade-in">
+        <header className="h-20 flex items-center justify-between px-8 z-10 animate-fade-in relative">
            <div className="flex items-center gap-4">
                {state.activeView === 'history' ? (
                    <h2 className="text-2xl font-bold text-zinc-800 tracking-tight">Project History</h2>
@@ -406,6 +431,17 @@ const App: React.FC = () => {
                  <span className="text-xs font-bold text-zinc-600 tracking-wide">SYSTEM OPERATIONAL</span>
               </div>
            </div>
+
+           {/* GLOBAL ERROR ALERT */}
+           {state.error && (
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 bg-red-500 text-white rounded-xl shadow-xl shadow-red-500/20 animate-slide-up">
+                  <AlertCircle className="w-5 h-5"/>
+                  <span className="text-sm font-bold">{state.error}</span>
+                  <button onClick={dismissError} className="p-1 hover:bg-white/20 rounded-full transition-colors ml-2">
+                      <XCircle className="w-5 h-5"/>
+                  </button>
+              </div>
+           )}
         </header>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-8 pb-32">
@@ -541,7 +577,16 @@ const App: React.FC = () => {
                         {/* RIGHT: OUTPUT ONLY */}
                         <div className="xl:col-span-8 flex flex-col h-full animate-slide-in-right delay-200">
                             <div className="flex-1 glass-panel rounded-2xl h-full border-white/60 shadow-xl overflow-hidden relative">
-                                <ResultPanel result={state.result} loading={state.isGenerating} onRegenerate={handleGeneratePrompt} outputFormat={state.outputFormat} setOutputFormat={f => setState(p => ({...p, outputFormat: f}))} language={state.language} model={state.selectedModel} />
+                                <ResultPanel 
+                                    result={state.result} 
+                                    loading={state.isGenerating} 
+                                    error={state.error}
+                                    onRegenerate={handleGeneratePrompt} 
+                                    outputFormat={state.outputFormat} 
+                                    setOutputFormat={f => setState(p => ({...p, outputFormat: f}))} 
+                                    language={state.language} 
+                                    model={state.selectedModel} 
+                                />
                             </div>
                         </div>
                     </div>

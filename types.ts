@@ -1,5 +1,4 @@
 
-
 export enum AIModel {
   Sora2 = 'OpenAI Sora 2',
   Veo3 = 'Google Veo 3.1',
@@ -45,7 +44,7 @@ export enum CreativeStyle {
 
 export type AppLanguage = 'en' | 'ar';
 export type OutputFormat = 'normal' | 'json' | 'python';
-export type AppMode = 'ad-creator' | 'studio'; // New Mode Switcher
+export type AppMode = 'ad-creator' | 'studio';
 
 export interface ImageAnalysis {
   productDescription: string;
@@ -76,22 +75,20 @@ export interface StudioScene {
   id: number;
   title: string;
   description: string;
-  visualPrompt: string; // For Image Generation
-  videoPrompt: string;  // For Video Model (Motion/Physics)
-  script: string;       // Dialogue or Voiceover lines
-  voiceover: string;    // Kept for backward compat, merged into script
+  visualPrompt: string;
+  videoPrompt: string;
+  script: string;
+  voiceover: string;
   imageUrl?: string | null;
   isGeneratingImage: boolean;
   duration?: number;
-  aspectRatio: AspectRatio; // Per-scene ratio
+  aspectRatio: AspectRatio;
 }
 
 export interface GeneratedResult {
-  finalPrompt?: string; // The single, perfect, detailed prompt (Optional for Studio results)
-  fullScript?: string; // The compiled voiceover/dialogue script
-  richData?: any; // The full JSON structured output (hooks, scenes, strategy)
-  
-  // Studio Mode specific fields
+  finalPrompt?: string;
+  fullScript?: string;
+  richData?: any;
   idea?: string;
   scenes?: StudioScene[];
   characters?: StudioCharacter[];
@@ -144,28 +141,31 @@ export interface GeneratePromptParams {
 export interface AppState {
   language: AppLanguage;
   outputFormat: OutputFormat;
-  activeMode: AppMode; // Switch between Ad Creator and Studio
+  activeMode: AppMode;
   
   // Navigation State
   activeView: 'create' | 'history' | 'templates';
   showHistoryPanel: boolean;
   history: HistoryItem[];
 
+  // Error State
+  error: string | null; // NEW: To display errors in UI
+
   // Ad Creator State
-  image: string | null; // Base64
-  generatedSceneImage: string | null; // Base64 of the AI generated preview
+  image: string | null;
+  generatedSceneImage: string | null;
   isAnalyzing: boolean;
   isGeneratingScene: boolean;
   
   // Studio Prompt State
   studioConfig: StudioConfig;
   studioInput: string;
-  storyScript: string; // New: Holds the global narrator script
-  backgroundMusic: string; // New: Holds the background music prompt
-  studioCharacters: StudioCharacter[]; // New: Characters list
+  storyScript: string;
+  backgroundMusic: string;
+  studioCharacters: StudioCharacter[];
   studioScenes: StudioScene[];
   isGeneratingStory: boolean;
-  isEnhancing: boolean; // New: For the enhance button
+  isEnhancing: boolean;
   studioResult: GeneratedResult | null;
   
   // Image Editing State
@@ -174,12 +174,12 @@ export interface AppState {
 
   analysis: ImageAnalysis | null;
   selectedAdType: AdType[];
-  isHybridMode: boolean; // New Flag
+  isHybridMode: boolean;
   selectedStyle: CreativeStyle | null;
   selectedModel: AIModel;
   aspectRatio: AspectRatio;
   customAspectRatio: string;
-  videoDuration: number; // Duration in seconds
+  videoDuration: number;
   sliders: {
     creativity: number;
     realism: number;
