@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Studio Space</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Plus Jakarta Sans', 'Cairo', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              obsidian: '#ffffff',
+              zinc: {
+                850: '#f4f4f5',
+                900: '#18181b', // Dark text for light mode
+                950: '#09090b',
+              },
+              amber: {
+                550: '#f59e0b',
+              }
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+              'slide-up': 'slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
+              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              slideUp: {
+                '0%': { opacity: '0', transform: 'translateY(20px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Plus Jakarta Sans', 'Cairo', sans-serif;
+        background-color: #fafafa;
+        color: #18181b;
+        overflow-x: hidden;
+      }
+      
+      /* Pure Light Mode Background */
+      .cinematic-bg {
+         background: 
+          radial-gradient(circle at 50% 0%, rgba(249, 115, 22, 0.08), transparent 60%),
+          radial-gradient(circle at 80% 10%, rgba(59, 130, 246, 0.03), transparent 50%),
+          linear-gradient(to bottom, #ffffff, #fafafa);
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+      }
+
+      .glass-panel {
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid #e4e4e7;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+        backdrop-filter: blur(12px);
+      }
+      
+      .glass-input {
+        background: #f4f4f5;
+        border: 1px solid #e4e4e7;
+        color: #18181b;
+      }
+      
+      aside {
+        background: #ffffff;
+        border-right: 1px solid #e4e4e7;
+      }
+      header {
+        background: rgba(255, 255, 255, 0.9);
+        border-bottom: 1px solid #e4e4e7;
+      }
+
+      /* Custom scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb {
+        background: #d4d4d8;
+        border-radius: 99px;
+      }
+      ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+
+      .glass-input:focus {
+        background: #ffffff;
+        border-color: rgba(249, 115, 22, 0.5);
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.1);
+      }
+
+      /* Loader */
+      .loader-dots span {
+        animation: loader 1.4s infinite ease-in-out both;
+        background-color: #f97316;
+      }
+      .loader-dots span:nth-child(1) { animation-delay: -0.32s; }
+      .loader-dots span:nth-child(2) { animation-delay: -0.16s; }
+      
+      @keyframes loader {
+        0%, 80%, 100% { transform: scale(0); }
+        40% { transform: scale(1); }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
+</head>
+  <body>
+    <div class="cinematic-bg"></div>
+    <div id="root"></div>
+  </body>
+</html>
