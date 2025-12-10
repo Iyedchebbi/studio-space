@@ -82,7 +82,7 @@ def generate():
       </div>
 
       <div className="p-4 border-t border-zinc-100 bg-zinc-50 flex justify-end">
-         <button onClick={() => copyToClipboard(result.finalPrompt)} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white rounded-lg text-xs font-bold hover:bg-zinc-800 transition-colors">
+         <button onClick={() => copyToClipboard(result.finalPrompt || '')} className="flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white rounded-lg text-xs font-bold hover:bg-zinc-800 transition-colors">
             {copied ? <Check className="w-4 h-4"/> : <Copy className="w-4 h-4"/>} {copied ? 'Copied' : 'Copy Code'}
          </button>
       </div>

@@ -55,10 +55,48 @@ export interface ImageAnalysis {
   suggestedScene?: string;
 }
 
+export interface StudioConfig {
+  style: string;
+  sceneCount: number;
+  sceneDuration: number;
+  characterDescription: string;
+}
+
+export interface StudioCharacter {
+  id: number;
+  name: string;
+  description: string;
+  visualPrompt: string;
+  imageUrl?: string | null;
+  isGeneratingImage: boolean;
+  aspectRatio: AspectRatio;
+}
+
+export interface StudioScene {
+  id: number;
+  title: string;
+  description: string;
+  visualPrompt: string; // For Image Generation
+  videoPrompt: string;  // For Video Model (Motion/Physics)
+  script: string;       // Dialogue or Voiceover lines
+  voiceover: string;    // Kept for backward compat, merged into script
+  imageUrl?: string | null;
+  isGeneratingImage: boolean;
+  duration?: number;
+  aspectRatio: AspectRatio; // Per-scene ratio
+}
+
 export interface GeneratedResult {
-  finalPrompt: string; // The single, perfect, detailed prompt
+  finalPrompt?: string; // The single, perfect, detailed prompt (Optional for Studio results)
   fullScript?: string; // The compiled voiceover/dialogue script
   richData?: any; // The full JSON structured output (hooks, scenes, strategy)
+  
+  // Studio Mode specific fields
+  idea?: string;
+  scenes?: StudioScene[];
+  characters?: StudioCharacter[];
+  backgroundMusicPrompt?: string;
+  config?: StudioConfig;
 }
 
 export interface HistoryItem {
@@ -101,38 +139,6 @@ export interface GeneratePromptParams {
     brandMessage: string;
   };
   language: AppLanguage;
-}
-
-// Studio Mode Specific Types
-export interface StudioConfig {
-  style: string;
-  sceneCount: number;
-  sceneDuration: number;
-  characterDescription: string;
-}
-
-export interface StudioCharacter {
-  id: number;
-  name: string;
-  description: string;
-  visualPrompt: string;
-  imageUrl?: string | null;
-  isGeneratingImage: boolean;
-  aspectRatio: AspectRatio;
-}
-
-export interface StudioScene {
-  id: number;
-  title: string;
-  description: string;
-  visualPrompt: string; // For Image Generation
-  videoPrompt: string;  // For Video Model (Motion/Physics)
-  script: string;       // Dialogue or Voiceover lines
-  voiceover: string;    // Kept for backward compat, merged into script
-  imageUrl?: string | null;
-  isGeneratingImage: boolean;
-  duration?: number;
-  aspectRatio: AspectRatio; // Per-scene ratio
 }
 
 export interface AppState {
