@@ -1,4 +1,5 @@
 
+
 export enum AIModel {
   Sora2 = 'OpenAI Sora 2',
   Veo3 = 'Google Veo 3.1',
@@ -88,7 +89,13 @@ export interface StudioScene {
 export interface GeneratedResult {
   finalPrompt?: string;
   fullScript?: string;
-  richData?: any;
+  richData?: {
+    strategy?: string;
+    visual_hooks?: string[];
+    audio_direction?: string;
+    color_grade?: string;
+    [key: string]: any;
+  };
   idea?: string;
   scenes?: StudioScene[];
   characters?: StudioCharacter[];
@@ -120,7 +127,7 @@ export interface GeneratePromptParams {
   base64Image: string | null;
   adTypes: AdType[];
   isHybridMode: boolean;
-  style: string | null;
+  styles: CreativeStyle[];
   model: AIModel;
   aspectRatio: AspectRatio;
   videoDuration: number;
@@ -175,7 +182,7 @@ export interface AppState {
   analysis: ImageAnalysis | null;
   selectedAdType: AdType[];
   isHybridMode: boolean;
-  selectedStyle: CreativeStyle | null;
+  selectedStyles: CreativeStyle[]; // Changed from selectedStyle: CreativeStyle | null
   selectedModel: AIModel;
   aspectRatio: AspectRatio;
   customAspectRatio: string;

@@ -83,7 +83,7 @@ const App: React.FC = () => {
     analysis: null,
     selectedAdType: [AdType.ProductShowcase],
     isHybridMode: false,
-    selectedStyle: CreativeStyle.Modern,
+    selectedStyles: [CreativeStyle.Modern],
     selectedModel: AIModel.Veo3,
     aspectRatio: AspectRatio.Landscape,
     customAspectRatio: '',
@@ -175,7 +175,7 @@ const App: React.FC = () => {
   const handleReset = () => {
     setState(prev => ({
         ...prev, image: null, generatedSceneImage: null, result: null, analysis: null, studioInput: '', storyScript: '', backgroundMusic: '', studioScenes: [], studioCharacters: [], studioResult: null,
-        selectedAdType: [AdType.ProductShowcase], isHybridMode: false,
+        selectedAdType: [AdType.ProductShowcase], isHybridMode: false, selectedStyles: [CreativeStyle.Modern],
         studioConfig: { style: 'Hollywood Cinematic', sceneCount: 5, sceneDuration: 5, characterDescription: '' },
         isGenerating: false, isGeneratingScene: false, isAnalyzing: false, activeView: 'create',
         error: null
@@ -229,7 +229,7 @@ const App: React.FC = () => {
     try {
       const result = await generateAdPrompt({
         imageAnalysis: state.analysis, base64Image: state.image, adTypes: state.selectedAdType, isHybridMode: state.isHybridMode,
-        style: state.selectedStyle ? state.selectedStyle.toString() : null, model: state.selectedModel,
+        styles: state.selectedStyles, model: state.selectedModel,
         aspectRatio: state.aspectRatio, videoDuration: state.videoDuration, sliders: state.sliders, camera: state.cameraMovement, lighting: state.lighting,
         context: state.additionalContext, language: state.language
       });
@@ -341,6 +341,29 @@ const App: React.FC = () => {
           // Immediate regeneration
           handleGenerateSceneImage(id, scene.visualPrompt, ratio);
       }
+  };
+
+  const handleStyleSelect = (style: CreativeStyle) => {
+      setState(prev => {
+          let newStyles = [...prev.selectedStyles];
+          
+          if (prev.isHybridMode) {
+              // Toggle logic for Hybrid Mode
+              if (newStyles.includes(style)) {
+                  newStyles = newStyles.filter(s => s !== style);
+              } else {
+                  newStyles.push(style);
+              }
+              // Ensure at least one is selected if user unselects all? Or allow empty?
+              // Let's enforce at least one for better UX
+              if (newStyles.length === 0) newStyles = [style]; 
+          } else {
+              // Single Select for Standard Mode
+              newStyles = [style];
+          }
+          
+          return { ...prev, selectedStyles: newStyles };
+      });
   };
 
   // --- RENDER HELPERS ---
@@ -552,7 +575,31 @@ const App: React.FC = () => {
                                     </div>
                                     
                                     <div>
-                                        <div className="flex justify-between mb-3"><label className="text-xs font-bold text-zinc-400 uppercase">Creative Style</label><button onClick={() => setState(p => ({...p, isHybridMode: !p.isHybridMode}))} className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition-colors ${state.isHybridMode ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white' : 'bg-zinc-100 text-zinc-400'}`}>HYBRID MODE</button></div>
+                                        <div className="flex justify-between mb-3">
+                                            <label className="text-xs font-bold text-zinc-400 uppercase">Creative Style</label>
+                                            <button onClick={() => setState(p => ({...p, isHybridMode: !p.isHybridMode}))} className={`text-[10px] px-2 py-0.5 rounded-full font-bold transition-colors ${state.isHybridMode ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md shadow-indigo-500/20' : 'bg-zinc-100 text-zinc-400 hover:bg-zinc-200'}`}>
+                                                {state.isHybridMode ? 'HYBRID ACTIVE' : 'SINGLE MODE'}
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {STYLES.map(style => {
+                                                const isSelected = state.selectedStyles.includes(style);
+                                                return (
+                                                    <button 
+                                                        key={style} 
+                                                        onClick={() => handleStyleSelect(style)} 
+                                                        className={`p-2.5 rounded-xl text-[10px] font-bold border transition-all duration-200 ${isSelected ? 'bg-zinc-900 text-white border-zinc-900 shadow-lg' : 'bg-white border-zinc-100 text-zinc-500 hover:border-zinc-300'}`}
+                                                    >
+                                                        {style}
+                                                        {state.isHybridMode && isSelected && <span className="ml-1 text-zinc-400 text-[8px]">•</span>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="mt-4">
+                                        <label className="text-xs font-bold text-zinc-400 uppercase block mb-3">Ad Type</label>
                                         <div className="grid grid-cols-3 gap-2">
                                             {AD_TYPES.slice(0, 6).map(type => (
                                                 <button key={type} onClick={() => setState(p => ({...p, selectedAdType: [type]}))} className={`p-2 rounded-xl text-[10px] font-bold border transition-all duration-200 ${state.selectedAdType.includes(type) ? 'bg-zinc-900 text-white border-zinc-900 shadow-lg' : 'bg-white border-zinc-100 text-zinc-500 hover:border-zinc-300'}`}>

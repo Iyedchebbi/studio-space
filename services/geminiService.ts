@@ -1,74 +1,51 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { AIModel, GeneratedResult, ImageAnalysis, AppLanguage, AdType, SceneGenConfig, StudioScene, GeneratePromptParams, StudioConfig, AspectRatio, StudioCharacter } from "../types";
+import { AIModel, GeneratedResult, ImageAnalysis, AppLanguage, AdType, SceneGenConfig, StudioScene, GeneratePromptParams, StudioConfig, AspectRatio, StudioCharacter, CreativeStyle } from "../types";
 
 // --- CONFIGURATION ---
 const ANALYSIS_MODEL = 'gemini-3-pro-preview'; 
 const GENERATION_MODEL = 'gemini-3-pro-preview'; 
 const IMAGE_GEN_MODEL = 'gemini-2.5-flash-image'; 
 
-// --- CREATIVE RULES ---
-const AD_TYPE_DEFINITIONS: Record<string, { visuals: string; camera: string; lighting: string }> = {
-  [AdType.UGC]: {
-    visuals: "Shot on iPhone 15 Pro Max. Vertical 9:16. 4K 60fps. Authentic, raw, unpolished, digital noise, 'social media' look. NOT CINEMATIC.",
-    camera: "Handheld selfie mode, POV, snap zooms, slight shake, authentic framing.",
-    lighting: "Natural window light, ring light, uneven shadows, real-world mix."
-  },
-  [AdType.Cinematic]: {
-    visuals: "Shot on Arri Alexa LF. Anamorphic lens. Film grain. Teal & Orange grade. High dynamic range. Shallow depth of field.",
-    camera: "Gimbal smooth, dolly push-in, parallax slide, steadycam, rack focus.",
-    lighting: "Volumetric fog, rembrandt lighting, moody contrast."
-  },
-  [AdType.ProductShowcase]: {
-    visuals: "8K Macro photography. Infinite background. Liquid simulation. Extremely sharp textures. Flawless rendering.",
-    camera: "Slow orbit, probe lens macro, smooth pan, fixed focal length.",
-    lighting: "Studio softbox, three-point lighting, caustic reflections, high-key."
-  },
-  [AdType.Lifestyle]: {
-    visuals: "High-end commercial. Golden hour. Happy people. Natural saturation. Aspirational vibe.",
-    camera: "Medium shots, stabilized handheld, following subject, eye level.",
-    lighting: "Sunlight, lens flares, soft fill, warm tones."
-  },
-  [AdType.Animation3D]: {
-    visuals: "Octane Render. Unreal Engine 5. Subsurface scattering. Physics simulation. Particle effects.",
-    camera: "Impossible angles, fly-through, speed ramps, looping motion.",
-    lighting: "Global illumination, neon emission, studio HDRI."
-  },
-  [AdType.Luxury]: {
-    visuals: "Vogue editorial. Velvet/Gold/Marble textures. Deep blacks. Slow motion (120fps).",
-    camera: "Slow pans, static symmetry, low angle, macro texture.",
-    lighting: "Low key, silhouette, glinting reflections, chiaroscuro."
-  },
-  [AdType.Minimal]: {
-    visuals: "Bauhaus design. Negative space. Pastel colors. Geometric. Flat lay.",
-    camera: "Top-down bird's eye, static tripod, slow zoom out.",
-    lighting: "Flat even lighting, soft shadows, ambient occlusion."
-  },
-  [AdType.Testimonial]: {
-    visuals: "Interview setting. Head and shoulders. Blurred office background. Broadcast quality.",
-    camera: "Static tripod, rule of thirds, eye contact.",
-    lighting: "Key light, separation light, professional setup."
-  },
-  [AdType.SocialShort]: {
-    visuals: "Fast paced. Split screens. Bold overlays. High saturation. Meme aesthetic.",
-    camera: "Whip pans, crash zooms, chaotic energy.",
-    lighting: "Bright pop, colorful LED, high contrast."
-  }
+// --- ADVANCED CREATIVE RULES ---
+const AD_TYPE_DEFINITIONS: Record<string, string> = {
+  [AdType.UGC]: "Aesthetic: Raw, authentic, TikTok-style. Camera: Handheld iPhone 15 Pro, slight shake, vertical framing. Lighting: Ring light or natural window light, unpolished. Vibe: Relatable, high-energy, 'user-generated' feel.",
+  [AdType.Cinematic]: "Aesthetic: Hollywood blockbuster. Camera: Arri Alexa LF, Panavision Anamorphic lenses (blue flares). Lighting: Rembrandt lighting, volumetric fog, deep shadows, teal & orange color grade. Vibe: Emotional, epic, high-budget.",
+  [AdType.ProductShowcase]: "Aesthetic: High-end commercial macro. Camera: Probe lens, slow smooth motion control (Bolt robot). Lighting: Studio softbox, rim lighting, caustic reflections on glass/metal. Vibe: Luxurious, clean, perfectionist.",
+  [AdType.Lifestyle]: "Aesthetic: Aspirational commercial. Camera: Steadicam, medium focal length (50mm), tracking shots. Lighting: Golden hour sun, lens flares, warm, soft fill. Vibe: Happy, energetic, sun-kissed.",
+  [AdType.Animation3D]: "Aesthetic: Pixar/Unreal Engine 5. Physics: Soft-body dynamics, particle simulations. Lighting: Octane Render, Global Illumination, subsurface scattering. Vibe: Playful, magical, impossible physics.",
+  [AdType.Luxury]: "Aesthetic: Vogue/High Fashion. Camera: Slow motion (120fps), static or very slow push-in. Texture: Velvet, gold, marble, silk. Lighting: Chiaroscuro, silhouette, high contrast. Vibe: Mysterious, expensive, exclusive.",
+  [AdType.Minimal]: "Aesthetic: Bauhaus/Apple style. Composition: Negative space, geometric alignment, flat lay. Colors: Pastel or monochrome. Lighting: Soft, shadowless, ambient occlusion. Vibe: Clean, organized, satisfying.",
+  [AdType.Testimonial]: "Aesthetic: Documentary interview. Camera: Shallow depth of field (f/1.8), focus on eyes. Background: Softly blurred office or home. Lighting: Key light, separation light (hair light). Vibe: Trustworthy, professional.",
+  [AdType.SocialShort]: "Aesthetic: Fast-paced Instagram Reel. Editing: Whip pans, crash zooms, speed ramps. Colors: High saturation, pop art. Vibe: Viral, loud, attention-grabbing."
+};
+
+const MODEL_SPECIFIC_RULES: Record<AIModel, string> = {
+  [AIModel.Sora2]: "Focus deeply on physics simulation, fluid dynamics, and complex object permanence. Use keywords like 'physically accurate', 'temporal consistency', 'simulated reality'.",
+  [AIModel.Veo3]: "Focus on cinematic fidelity, HDR lighting, and 4K resolution. Use film terminology like 'anamorphic', 'chromatic aberration', 'ISO 800', 'shutter angle'.",
+  [AIModel.Runway]: "Focus on specific camera movements and control. Use keywords like 'camera zoom in', 'truck left', 'rack focus', 'motion brush'.",
+  [AIModel.Midjourney]: "Focus on artistic style, composition, and texture. Use parameters like '--style raw', '--stylize 1000'.",
+  [AIModel.Luma]: "Focus on high-speed motion and morphing effects. Keywords: 'dynamic transition', 'smooth interpolation'.",
+  [AIModel.StableVideo]: "Focus on frame stability and noise reduction.",
+  [AIModel.Flux]: "Focus on surrealism and prompt adherence.",
+  [AIModel.Dalle3]: "Focus on literal prompt interpretation and distinct subjects."
 };
 
 const DIRECTOR_SYSTEM_PROMPT = `
-You are a World-Class AI Creative Director and Film Strategist using Gemini 3.0 Pro intelligence.
-Your goal: Create the perfect video generation prompt for models like Sora, Veo, and Runway.
+You are the world's most advanced AI Visual Director and Prompt Engineer, powered by Gemini 3.0 Pro.
+Your task is to synthesize the ultimate video generation prompt for a specific AI model.
 
-# OUTPUT RULES
-1. **Format**: Return ONLY valid JSON.
-2. **Detail**: The 'final_full_generation_prompt' must be massive (500+ words). Describe physics, textures, lenses, and lighting in excruciating detail.
-3. **Logic**:
-   - If UGC: Ban cinematic terms. Demand imperfection.
-   - If Cinematic: Demand high-end production value.
-   - If Hybrid: Blend them intelligently (e.g., "Starts with UGC hook, transitions to Cinematic reveal").
-4. **Structure**: Every video must have a timeline [00:00] -> [END].
-5. **Closing**: ALWAYS end with a 2-second closing scene (Logo/Fade).
+# CRITICAL INSTRUCTIONS
+1. **Analyze**: Deeply understand the product, the chosen styles, and the target audience.
+2. **Synthesize**: Merge the selected 'Ad Types' and 'Creative Styles' into a cohesive visual language. Do not just list them; blend them (e.g., "A cyberpunk lighting scheme applied to a luxury perfume bottle").
+3. **Model Optimization**: strictly adhere to the specific keywords and best practices for the chosen Target Model.
+4. **Detail Level**: The output prompt must be 'Stunning'. Describe textures (brushed metal, condensation), lighting (subsurface scattering, god rays), and camera movement (parallax, dolly zoom) in microscopic detail.
+5. **JSON Output**: Return ONLY valid JSON.
+
+# SLIDER INTERPRETATION
+- **Creativity**: High = Surreal, dreamlike, impossible physics, abstract transitions. Low = Literal, grounded, realistic.
+- **Realism**: High = 8K, uncompressed, raw photo-style. Low = Stylized, painterly, digital art.
+- **Technical**: High = Use specific lens metrics (f/1.4, 85mm), ISO, shutter speed. Low = General visual descriptors.
 `;
 
 // --- API HELPERS ---
@@ -110,7 +87,7 @@ export const analyzeImage = async (base64Image: string): Promise<ImageAnalysis> 
     const prompt = `
       Analyze this image for a high-budget video ad.
       Extract:
-      1. Product Description (Physical details).
+      1. Product Description (Physical details, material, texture).
       2. Category.
       3. Brand Colors (Hex/Names).
       4. 3 Best Camera Angles for this specific item.
@@ -145,41 +122,61 @@ export const analyzeImage = async (base64Image: string): Promise<ImageAnalysis> 
 
 export const generateAdPrompt = async (params: GeneratePromptParams): Promise<GeneratedResult> => {
   try {
-    const adStyle = params.adTypes.map(t => AD_TYPE_DEFINITIONS[t] || { visuals: "", camera: "", lighting: "" }).reduce((acc, curr) => ({
-       visuals: acc.visuals + " " + curr.visuals,
-       camera: acc.camera + " " + curr.camera,
-       lighting: acc.lighting + " " + curr.lighting
-    }), { visuals: "", camera: "", lighting: "" });
+    // 1. Construct Style Profile
+    const adTypeDesc = params.adTypes.map(t => AD_TYPE_DEFINITIONS[t]).join(" ");
+    const modelRules = MODEL_SPECIFIC_RULES[params.model] || "General video generation rules.";
+    const stylesDesc = params.styles.join(" + ");
+    
+    // 2. Interpret Sliders
+    const creativityInstruction = params.sliders.creativity > 70 
+      ? "Push boundaries. Use surreal transitions, defying gravity, magical realism elements." 
+      : "Keep it grounded. Strictly adhere to real-world physics and logic.";
+    
+    const realismInstruction = params.sliders.realism > 70
+      ? "Target 'Photorealism'. Use keywords: 8k, raw footage, uncompressed, optical perfection."
+      : "Allow for stylized, artistic, or animated interpretations.";
 
+    const technicalInstruction = params.sliders.technical > 70
+      ? "Include deep technical camera specs: Focal length (e.g. 35mm), Aperture (e.g. f/1.8), Shutter angle, ISO, Lighting ratios."
+      : "Focus on the visual vibe and mood rather than camera numbers.";
+
+    // 3. Construct the Mega-Prompt
     const prompt = `
       ${DIRECTOR_SYSTEM_PROMPT}
 
-      # PROJECT BRIEF
-      - **Language**: ${params.language === 'ar' ? 'Arabic (Return rationale in Arabic, Prompt in English)' : 'English'}
-      - **Input**: ${params.imageAnalysis?.productDescription}
-      - **Target Model**: ${params.model}
+      # PROJECT INPUTS
+      - **Target Model**: ${params.model} (Rules: ${modelRules})
+      - **Product Analysis**: ${params.imageAnalysis?.productDescription}
+      - **Context/Brand**: "${params.context.brandMessage}"
+      - **Voiceover Idea**: "${params.context.voiceover}"
+      - **Language**: ${params.language === 'ar' ? 'Arabic rationale, English Prompt' : 'English'}
+      
+      # CREATIVE CONFIGURATION
+      - **Ad Types (Fusion)**: ${params.adTypes.join(', ')} -> ${adTypeDesc}
+      - **Visual Styles**: ${stylesDesc} (Hybrid Mode: ${params.isHybridMode})
       - **Aspect Ratio**: ${params.aspectRatio}
       - **Duration**: ${params.videoDuration}s
-      - **Ad Types**: ${params.adTypes.join(', ')}
-      - **Hybrid Mode**: ${params.isHybridMode}
-      - **Visual Style**: ${params.style || 'None'}
-      - **Brand Context**: ${params.context.brandMessage}
-      - **Voiceover**: ${params.context.voiceover}
-      - **Technical Specs**: Camera [${params.camera.join(', ')}], Lighting [${params.lighting}].
-      - **Creative DNA**: 
-        - Visuals: ${adStyle.visuals}
-        - Camera Movement: ${adStyle.camera}
-        - Lighting Mood: ${adStyle.lighting}
+      
+      # DIRECTOR SETTINGS (SLIDERS)
+      1. Creativity (${params.sliders.creativity}%): ${creativityInstruction}
+      2. Realism (${params.sliders.realism}%): ${realismInstruction}
+      3. Technical Depth (${params.sliders.technical}%): ${technicalInstruction}
+      4. Lighting Setup: ${params.lighting}
+      5. Camera Movement: ${params.camera.join(', ')}
+
+      # TASK
+      Generate a comprehensive JSON response containing the Master Prompt and Strategy.
       
       # OUTPUT JSON STRUCTURE
       {
-        "finalPrompt": "THE_FULL_DETAILED_PROMPT_HERE",
+        "finalPrompt": "THE_FULL_MASTER_PROMPT (Include subject, action, environment, lighting, camera, technical specs, --parameters)",
         "richData": {
-          "strategy": "Why this works...",
-          "visual_hooks": ["Hook 1", "Hook 2"],
-          "audio_direction": "Sound design notes..."
+          "strategy": "A brief explanation of why this creative direction fits the product.",
+          "visual_hooks": ["Hook 1 (0-3s)", "Hook 2 (Mid-video)", "Hook 3 (Ending)"],
+          "audio_direction": "Detailed sound design (SFX) and music mood description.",
+          "color_grade": "Description of the color palette and grading style."
         },
-        "idea": "Short summary of the concept"
+        "idea": "A catchy title for this campaign concept"
       }
     `;
 
@@ -207,7 +204,7 @@ export const enhanceStoryConcept = async (concept: string): Promise<string> => {
   try {
     const response = await getClient().models.generateContent({
       model: GENERATION_MODEL,
-      contents: { text: `Act as a Hollywood Screenwriter. Take this raw film concept and enhance it to be more cinematic, intriguing, and visually descriptive, but keep it concise (under 100 words). \n\nRAW CONCEPT: "${concept}"\n\nENHANCED CONCEPT:` }
+      contents: { text: `Act as a Hollywood Screenwriter using Gemini 3.0 Pro. Take this raw film concept and enhance it to be more cinematic, intriguing, and visually descriptive, but keep it concise (under 100 words). \n\nRAW CONCEPT: "${concept}"\n\nENHANCED CONCEPT:` }
     });
     return response.text?.trim() || concept;
   } catch (error: any) {
@@ -228,7 +225,7 @@ export const generateStoryboard = async (
 }> => {
   try {
     const prompt = `
-      You are a Lead Narrative Designer and Cinematographer.
+      You are a Lead Narrative Designer and Cinematographer powered by Gemini 3.0 Pro.
       
       # INPUT
       - Idea: "${idea}"
